@@ -1,6 +1,6 @@
 # godraft
 
-A secure personal clipboard for moving notes and code between devices. No accounts - a shared **secret** is the room key.
+A secure personal clipboard for moving notes between devices. No accounts - a shared **secret** is the room key.
 Everything syncs live over Supabase Realtime.
 
 ## Setup
