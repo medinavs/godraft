@@ -1,7 +1,6 @@
 # godraft
 
-A secure personal clipboard for moving notes and code between devices (e.g. your
-machine ↔ a corporate VDI). No accounts — a shared **secret** is the room key.
+A secure personal clipboard for moving notes and code between devices. No accounts - a shared **secret** is the room key.
 Everything syncs live over Supabase Realtime.
 
 ## Setup
@@ -19,17 +18,6 @@ npm run dev
 
 Open the app, type a secret → workspace opens. Open the same URL + same secret on
 another device to sync instantly.
-
-## How it works
-
-- The secret is SHA-256 hashed in the browser; the hash is the `workspace` key.
-  The server never sees the raw secret. Access is gated by the secret being
-  unguessable — see the note in `schema.sql`.
-- Notes autosave (debounced) and stream to every connected device via Postgres
-  changes.
-- Editor has a plain-text mode (preserves spacing/indentation) and a code mode
-  (CodeMirror: syntax highlighting, line numbers, bracket matching) for Go, TS,
-  JS, JSON, SQL, YAML, and Bash.
 
 ## Architecture
 
