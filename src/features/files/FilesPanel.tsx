@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Download, File as FileIcon, Link2, Paperclip, Trash2, Upload } from 'lucide-react'
+import { Download, File as FileIcon, Link2, Trash2, Upload } from 'lucide-react'
 import { useFiles } from './useFiles'
 import { isImage, publicUrl } from './filesService'
 import type { FileItem } from './types'
@@ -24,7 +24,7 @@ export function FilesPanel({ workspace }: { workspace: string }) {
 
   return (
     <div
-      className={`flex max-h-72 flex-col border-t border-border ${dragging ? 'bg-primary/10' : ''}`}
+      className={`flex min-h-0 flex-1 flex-col ${dragging ? 'bg-primary/10' : ''}`}
       onDragOver={(e) => {
         e.preventDefault()
         setDragging(true)
@@ -36,12 +36,10 @@ export function FilesPanel({ workspace }: { workspace: string }) {
         if (e.dataTransfer.files.length) void upload(e.dataTransfer.files)
       }}
     >
-      <div className="flex items-center justify-between px-4 py-2">
-        <div className="flex items-center gap-2 text-sm text-muted">
-          <Paperclip className="h-4 w-4" />
-          Files
-        </div>
+      <div className="flex items-center justify-between px-3 pb-2">
+        <span className="text-xs text-muted">{files.length} file{files.length === 1 ? '' : 's'}</span>
         <button
+          type="button"
           onClick={() => inputRef.current?.click()}
           className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-elevated hover:text-fg"
         >

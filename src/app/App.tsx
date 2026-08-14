@@ -80,7 +80,7 @@ function Workspace({ name, wkey, onLeave }: { name: string; wkey: string; onLeav
           onDelete={remove}
           onDuplicate={duplicate}
           onTogglePin={(n) => update(n.id, { pinned: !n.pinned })}
-          footer={<FilesPanel workspace={wkey} />}
+          filesTab={<FilesPanel workspace={wkey} />}
         />
 
         <main className="min-w-0 flex-1">
