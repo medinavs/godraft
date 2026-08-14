@@ -7,6 +7,7 @@ import { SecretGate } from '@/features/workspace/SecretGate'
 import { useNotes } from '@/features/notes/useNotes'
 import { NotesSidebar } from '@/features/notes/NotesSidebar'
 import { EditorPane } from '@/features/editor/EditorPane'
+import { FilesPanel } from '@/features/files/FilesPanel'
 
 export default function App() {
   const { workspace, ready, enter, leave } = useWorkspace()
@@ -79,6 +80,7 @@ function Workspace({ name, wkey, onLeave }: { name: string; wkey: string; onLeav
           onDelete={remove}
           onDuplicate={duplicate}
           onTogglePin={(n) => update(n.id, { pinned: !n.pinned })}
+          footer={<FilesPanel workspace={wkey} />}
         />
 
         <main className="min-w-0 flex-1">

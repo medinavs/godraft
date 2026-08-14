@@ -10,4 +10,7 @@ if (!supabaseConfigured) {
   console.warn('Missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY — see .env.example')
 }
 
-export const supabase = createClient(url ?? 'http://localhost', anon ?? 'anon')
+export const SUPABASE_URL = url ?? 'http://localhost'
+export const SUPABASE_ANON_KEY = anon ?? 'anon'
+
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)

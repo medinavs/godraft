@@ -19,3 +19,38 @@ create policy "anon full access" on public.notes
   for all using (true) with check (true);
 
 alter publication supabase_realtime add table public.notes;
+
+create table if not exists public.files (
+  id uuid primary key default gen_random_uuid(),
+  workspace text not null,                 -- sha-256 hash of the shared secret
+  name text not null,
+  size bigint not null default 0,
+  path text not null,                      -- object path in the 'files' bucket
+  created_at timestamptz not null default now()
+);
+
+create index if not exists files_workspace_idx on public.files (workspace);
+
+alter table public.files enable row level security;
+
+drop policy if exists "anon full access" on public.files;
+create policy "anon full access" on public.files
+  for all using (true) with check (true);
+
+alter publication supabase_realtime add table public.files;
+
+insert into storage.buckets (id, name, public)
+values ('files', 'files', true)
+on conflict (id) do nothing;
+
+drop policy if exists "files bucket read" on storage.objects;
+create policy "files bucket read" on storage.objects
+  for select using (bucket_id = 'files');
+
+drop policy if exists "files bucket insert" on storage.objects;
+create policy "files bucket insert" on storage.objects
+  for insert with check (bucket_id = 'files');
+
+drop policy if exists "files bucket delete" on storage.objects;
+create policy "files bucket delete" on storage.objects
+  for delete using (bucket_id = 'files');

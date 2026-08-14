@@ -1,4 +1,4 @@
-import { forwardRef } from 'react'
+import { forwardRef, type ReactNode } from 'react'
 import { Copy, Pin, PinOff, Plus, Search, Trash2 } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
@@ -16,10 +16,11 @@ interface Props {
   onDelete: (id: string) => void
   onDuplicate: (note: Note) => void
   onTogglePin: (note: Note) => void
+  footer?: ReactNode
 }
 
 export const NotesSidebar = forwardRef<HTMLInputElement, Props>(function NotesSidebar(
-  { workspaceName, notes, activeId, query, onQuery, onSelect, onCreate, onDelete, onDuplicate, onTogglePin },
+  { workspaceName, notes, activeId, query, onQuery, onSelect, onCreate, onDelete, onDuplicate, onTogglePin, footer },
   searchRef,
 ) {
   return (
@@ -82,6 +83,8 @@ export const NotesSidebar = forwardRef<HTMLInputElement, Props>(function NotesSi
           </div>
         ))}
       </div>
+
+      {footer}
     </aside>
   )
 })
