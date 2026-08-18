@@ -64,3 +64,7 @@ export async function deleteFile(item: FileItem): Promise<void> {
 export function publicUrl(path: string): string {
   return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
 }
+
+export function downloadUrl(path: string, name: string): string {
+  return supabase.storage.from(BUCKET).getPublicUrl(path, { download: name }).data.publicUrl
+}

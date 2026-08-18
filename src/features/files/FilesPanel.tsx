@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { Download, File as FileIcon, Link2, Trash2, Upload } from 'lucide-react'
 import { useFiles } from './useFiles'
-import { isImage, publicUrl } from './filesService'
+import { downloadUrl, isImage, publicUrl } from './filesService'
 import type { FileItem } from './types'
 
 function formatBytes(n: number): string {
@@ -101,10 +101,7 @@ export function FilesPanel({ workspace }: { workspace: string }) {
                     </IconBtn>
                     <a
                       title="Download"
-                      href={publicUrl(f.path)}
-                      download={f.name}
-                      target="_blank"
-                      rel="noreferrer"
+                      href={downloadUrl(f.path, f.name)}
                       className="rounded p-1 text-white/80 hover:bg-white/20 hover:text-white"
                     >
                       <Download className="h-3.5 w-3.5" />
