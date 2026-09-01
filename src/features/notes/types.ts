@@ -2,6 +2,7 @@ export type EditorMode = 'text' | 'code'
 
 export const LANGUAGES = [
   'plaintext',
+  'markdown',
   'go',
   'typescript',
   'javascript',

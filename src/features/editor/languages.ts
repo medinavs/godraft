@@ -5,11 +5,14 @@ import { json } from '@codemirror/lang-json'
 import { sql } from '@codemirror/lang-sql'
 import { yaml } from '@codemirror/lang-yaml'
 import { go } from '@codemirror/lang-go'
+import { markdown } from '@codemirror/lang-markdown'
 import { shell } from '@codemirror/legacy-modes/mode/shell'
 import type { Language } from '@/features/notes/types'
 
 export function languageExtension(lang: Language): Extension[] {
   switch (lang) {
+    case 'markdown':
+      return [markdown()]
     case 'go':
       return [go()]
     case 'typescript':

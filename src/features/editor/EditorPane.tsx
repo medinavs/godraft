@@ -1,9 +1,12 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { Check, Copy } from 'lucide-react'
+import { Check, Copy, Eye, Code2 } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { LANGUAGES, type Note, type NotePatch, type EditorMode, type Language } from '@/features/notes/types'
 
 const CodeArea = lazy(() => import('./CodeArea').then((m) => ({ default: m.CodeArea })))
+const MarkdownPreview = lazy(() =>
+  import('./MarkdownPreview').then((m) => ({ default: m.MarkdownPreview })),
+)
 
 const AUTOSAVE_MS = 600
 
@@ -19,10 +22,15 @@ export function EditorPane({
   const [mode, setMode] = useState<EditorMode>(note.mode)
   const [language, setLanguage] = useState<Language>(note.language)
   const [copied, setCopied] = useState(false)
+  const [preview, setPreview] = useState(false)
   const dirty = useRef(false)
+
+  const isMarkdown = mode === 'code' && language === 'markdown'
+  const showPreview = isMarkdown && preview
 
   useEffect(() => {
     dirty.current = false
+    setPreview(false)
     setTitle(note.title)
     setContent(note.content)
     setMode(note.mode)
@@ -111,6 +119,13 @@ export function EditorPane({
           </select>
         )}
 
+        {isMarkdown && (
+          <Button variant="outline" size="sm" onClick={() => setPreview((p) => !p)}>
+            {preview ? <Code2 className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            {preview ? 'Code' : 'Preview'}
+          </Button>
+        )}
+
         <Button variant="outline" size="sm" onClick={copy}>
           {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
           {copied ? 'Copied' : 'Copy'}
@@ -118,7 +133,11 @@ export function EditorPane({
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto">
-        {mode === 'code' ? (
+        {showPreview ? (
+          <Suspense fallback={<div className="px-5 py-4 text-sm text-muted">Rendering…</div>}>
+            <MarkdownPreview content={content} />
+          </Suspense>
+        ) : mode === 'code' ? (
           <Suspense fallback={<div className="px-5 py-4 text-sm text-muted">Loading editor…</div>}>
             <CodeArea value={content} language={language} onChange={edit(setContent)} />
           </Suspense>
