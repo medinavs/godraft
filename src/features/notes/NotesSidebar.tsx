@@ -1,5 +1,5 @@
 import { forwardRef, useState, type ReactNode } from 'react'
-import { Copy, Pin, PinOff, Plus, Search, Trash2 } from 'lucide-react'
+import { Copy, LogOut, Pin, PinOff, Plus, Search, Trash2 } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { timeAgo } from '@/shared/lib/utils'
@@ -16,20 +16,29 @@ interface Props {
   onDelete: (id: string) => void
   onDuplicate: (note: Note) => void
   onTogglePin: (note: Note) => void
+  onLeave: () => void
   filesTab?: ReactNode
 }
 
 export const NotesSidebar = forwardRef<HTMLInputElement, Props>(function NotesSidebar(
-  { workspaceName, notes, activeId, query, onQuery, onSelect, onCreate, onDelete, onDuplicate, onTogglePin, filesTab },
+  { workspaceName, notes, activeId, query, onQuery, onSelect, onCreate, onDelete, onDuplicate, onTogglePin, onLeave, filesTab },
   searchRef,
 ) {
   const [tab, setTab] = useState<'notes' | 'files'>('notes')
 
   return (
     <aside className="flex h-full w-72 flex-col border-r border-border bg-surface">
-      <div className="flex items-center gap-2 truncate px-4 py-3">
-        <div className="h-2 w-2 rounded-full bg-emerald-400" title="live" />
-        <span className="truncate font-mono text-sm text-muted">{workspaceName}</span>
+      <div className="flex items-center gap-2 px-4 py-3">
+        <div className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" title="live" />
+        <span className="flex-1 truncate font-mono text-sm text-muted">{workspaceName}</span>
+        <button
+          type="button"
+          onClick={onLeave}
+          title="Leave workspace"
+          className="rounded p-1 text-muted hover:bg-elevated hover:text-fg"
+        >
+          <LogOut className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       <div className="flex items-center gap-1 px-3 pb-2">

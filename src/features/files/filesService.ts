@@ -1,7 +1,8 @@
 import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from '@/shared/lib/supabase'
-import type { FileItem } from './types'
+import type { FileItem, Folder } from './types'
 
 const TABLE = 'files'
+const FOLDERS = 'folders'
 const BUCKET = 'files'
 export const MAX_FILE_BYTES = 25 * 1024 * 1024 // 25MB - keep uploads within free-tier sanity
 
@@ -38,21 +39,57 @@ export async function fetchFiles(workspace: string): Promise<FileItem[]> {
 export async function uploadFile(
   workspace: string,
   file: File,
-  onProgress: (frac: number) => void = () => { },
+  folderId: string | null = null,
+  onProgress: (frac: number) => void = () => {},
 ): Promise<FileItem> {
   if (file.size > MAX_FILE_BYTES) throw new Error(`${file.name} exceeds 25MB`)
-  const safe = file.name.replace(/[^\w.\-]+/g, '_')
+  const safe = file.name.replace(/[^\w.-]+/g, '_')
   const path = `${workspace}/${crypto.randomUUID()}-${safe}`
 
   await xhrUpload(path, file, onProgress)
 
   const { data, error } = await supabase
     .from(TABLE)
-    .insert({ workspace, name: file.name, size: file.size, path })
+    .insert({ workspace, name: file.name, size: file.size, path, folder_id: folderId })
     .select()
     .single()
   if (error) throw error
   return data as FileItem
+}
+
+export async function moveFile(id: string, folderId: string | null): Promise<void> {
+  const { error } = await supabase.from(TABLE).update({ folder_id: folderId }).eq('id', id)
+  if (error) throw error
+}
+
+export async function fetchFolders(workspace: string): Promise<Folder[]> {
+  const { data, error } = await supabase
+    .from(FOLDERS)
+    .select('*')
+    .eq('workspace', workspace)
+    .order('name')
+  if (error) throw error
+  return data as Folder[]
+}
+
+export async function createFolder(workspace: string, name: string): Promise<Folder> {
+  const { data, error } = await supabase
+    .from(FOLDERS)
+    .insert({ workspace, name })
+    .select()
+    .single()
+  if (error) throw error
+  return data as Folder
+}
+
+export async function renameFolder(id: string, name: string): Promise<void> {
+  const { error } = await supabase.from(FOLDERS).update({ name }).eq('id', id)
+  if (error) throw error
+}
+
+export async function deleteFolder(id: string): Promise<void> {
+  const { error } = await supabase.from(FOLDERS).delete().eq('id', id)
+  if (error) throw error
 }
 
 export async function deleteFile(item: FileItem): Promise<void> {

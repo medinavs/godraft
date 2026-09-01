@@ -39,6 +39,32 @@ create policy "anon full access" on public.files
 
 alter publication supabase_realtime add table public.files;
 
+-- Folders to organize files ------------------------------------------------
+
+create table if not exists public.folders (
+  id uuid primary key default gen_random_uuid(),
+  workspace text not null,
+  name text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists folders_workspace_idx on public.folders (workspace);
+
+alter table public.folders enable row level security;
+
+drop policy if exists "anon full access" on public.folders;
+create policy "anon full access" on public.folders
+  for all using (true) with check (true);
+
+alter publication supabase_realtime add table public.folders;
+
+-- null folder_id = file lives at the workspace root. Deleting a folder moves
+-- its files back to root (on delete set null), never orphans them.
+alter table public.files
+  add column if not exists folder_id uuid references public.folders(id) on delete set null;
+
+-- Storage bucket for the actual file bytes ----------------------------------
+
 insert into storage.buckets (id, name, public)
 values ('files', 'files', true)
 on conflict (id) do nothing;

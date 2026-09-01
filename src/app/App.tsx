@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { FileText, LogOut } from 'lucide-react'
+import { FileText } from 'lucide-react'
 import { supabaseConfigured } from '@/shared/lib/supabase'
 import { Button } from '@/shared/components/ui/button'
 import { useWorkspace } from '@/features/workspace/useWorkspace'
@@ -80,6 +80,7 @@ function Workspace({ name, wkey, onLeave }: { name: string; wkey: string; onLeav
           onDelete={remove}
           onDuplicate={duplicate}
           onTogglePin={(n) => update(n.id, { pinned: !n.pinned })}
+          onLeave={onLeave}
           filesTab={<FilesPanel workspace={wkey} />}
         />
 
@@ -95,14 +96,6 @@ function Workspace({ name, wkey, onLeave }: { name: string; wkey: string; onLeav
           )}
         </main>
       </div>
-
-      <button
-        onClick={onLeave}
-        title="Leave workspace"
-        className="fixed bottom-3 left-3 flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted hover:bg-elevated hover:text-fg"
-      >
-        <LogOut className="h-3.5 w-3.5" /> leave
-      </button>
     </div>
   )
 }
