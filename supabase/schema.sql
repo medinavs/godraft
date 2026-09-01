@@ -44,9 +44,13 @@ alter publication supabase_realtime add table public.files;
 create table if not exists public.folders (
   id uuid primary key default gen_random_uuid(),
   workspace text not null,
+  kind text not null default 'file',       -- 'file' | 'note'
   name text not null,
   created_at timestamptz not null default now()
 );
+
+-- if the table predates the kind column
+alter table public.folders add column if not exists kind text not null default 'file';
 
 create index if not exists folders_workspace_idx on public.folders (workspace);
 
@@ -58,9 +62,12 @@ create policy "anon full access" on public.folders
 
 alter publication supabase_realtime add table public.folders;
 
--- null folder_id = file lives at the workspace root. Deleting a folder moves
--- its files back to root (on delete set null), never orphans them.
+-- null folder_id = item lives at the workspace root. Deleting a folder moves
+-- its items back to root (on delete set null), never orphans them.
 alter table public.files
+  add column if not exists folder_id uuid references public.folders(id) on delete set null;
+
+alter table public.notes
   add column if not exists folder_id uuid references public.folders(id) on delete set null;
 
 -- Storage bucket for the actual file bytes ----------------------------------

@@ -12,7 +12,9 @@ import {
 } from 'lucide-react'
 import { useFiles } from './useFiles'
 import { downloadUrl, isImage, publicUrl } from './filesService'
-import type { FileItem, Folder } from './types'
+import type { FileItem } from './types'
+import type { Folder } from '@/features/folders/foldersService'
+import { useDialog } from '@/shared/components/ui/dialog'
 
 const DRAG_TYPE = 'text/godraft-file'
 
@@ -25,6 +27,7 @@ function formatBytes(n: number): string {
 export function FilesPanel({ workspace }: { workspace: string }) {
   const { files, folders, uploads, upload, remove, moveFile, createFolder, renameFolder, deleteFolder } =
     useFiles(workspace)
+  const dlg = useDialog()
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -44,8 +47,8 @@ export function FilesPanel({ workspace }: { workspace: string }) {
     setTimeout(() => setCopiedId(null), 1500)
   }
 
-  const newFolder = () => {
-    const name = prompt('Folder name')?.trim()
+  const newFolder = async () => {
+    const name = (await dlg.prompt({ title: 'New folder', placeholder: 'Folder name', confirmText: 'Create' }))?.trim()
     if (name) void createFolder(name)
   }
 
@@ -130,12 +133,21 @@ export function FilesPanel({ workspace }: { workspace: string }) {
                   folder={folder}
                   count={countIn(folder.id)}
                   onOpen={() => setFolderId(folder.id)}
-                  onRename={() => {
-                    const name = prompt('Rename folder', folder.name)?.trim()
+                  onRename={async () => {
+                    const name = (
+                      await dlg.prompt({ title: 'Rename folder', defaultValue: folder.name, confirmText: 'Rename' })
+                    )?.trim()
                     if (name) void renameFolder(folder.id, name)
                   }}
-                  onDelete={() => {
-                    if (confirm(`Delete folder "${folder.name}"? Files move back to All files.`))
+                  onDelete={async () => {
+                    if (
+                      await dlg.confirm({
+                        title: `Delete "${folder.name}"?`,
+                        message: 'Files inside move back to All files.',
+                        confirmText: 'Delete',
+                        danger: true,
+                      })
+                    )
                       void deleteFolder(folder.id)
                   }}
                   onDropInto={dropInto(folder.id)}

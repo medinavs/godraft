@@ -24,6 +24,7 @@ export async function createNote(workspace: string, seed: Partial<Note> = {}): P
       mode: seed.mode ?? 'text',
       language: seed.language ?? 'plaintext',
       pinned: seed.pinned ?? false,
+      folder_id: seed.folder_id ?? null,
       updated_at: now,
     })
     .select()

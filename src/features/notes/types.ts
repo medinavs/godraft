@@ -21,8 +21,9 @@ export interface Note {
   mode: EditorMode
   language: Language
   pinned: boolean
+  folder_id: string | null // null = workspace root
   created_at: string
   updated_at: string
 }
 
-export type NotePatch = Partial<Pick<Note, 'title' | 'content' | 'mode' | 'language' | 'pinned'>>
+export type NotePatch = Partial<Pick<Note, 'title' | 'content' | 'mode' | 'language' | 'pinned' | 'folder_id'>>

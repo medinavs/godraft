@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/shared/lib/supabase'
+import { useFolders } from '@/features/folders/useFolders'
 import * as service from './filesService'
-import type { FileItem, Folder } from './types'
+import type { FileItem } from './types'
 
 export interface Upload {
   id: string
@@ -11,13 +12,12 @@ export interface Upload {
 
 export function useFiles(workspace: string) {
   const [files, setFiles] = useState<FileItem[]>([])
-  const [folders, setFolders] = useState<Folder[]>([])
   const [uploads, setUploads] = useState<Upload[]>([])
+  const { folders, createFolder, renameFolder, deleteFolder: removeFolder } = useFolders(workspace, 'file')
 
   useEffect(() => {
     let alive = true
     service.fetchFiles(workspace).then((f) => alive && setFiles(f)).catch(console.error)
-    service.fetchFolders(workspace).then((f) => alive && setFolders(f)).catch(console.error)
 
     const channel = supabase
       .channel(`files:${workspace}`)
@@ -35,20 +35,6 @@ export function useFiles(workspace: string) {
             const next = [...prev]
             next[i] = row // apply updates (e.g. moved to another folder)
             return next
-          })
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'folders', filter: `workspace=eq.${workspace}` },
-        (payload) => {
-          setFolders((prev) => {
-            if (payload.eventType === 'DELETE') {
-              return prev.filter((f) => f.id !== (payload.old as Folder).id)
-            }
-            const row = payload.new as Folder
-            const rest = prev.filter((f) => f.id !== row.id)
-            return [...rest, row].sort((a, b) => a.name.localeCompare(b.name))
           })
         },
       )
@@ -93,31 +79,13 @@ export function useFiles(workspace: string) {
     await service.moveFile(id, folderId).catch(console.error)
   }, [])
 
-  const createFolder = useCallback(
-    async (name: string) => {
-      const folder = await service.createFolder(workspace, name)
-      setFolders((prev) =>
-        (prev.some((f) => f.id === folder.id) ? prev : [...prev, folder]).sort((a, b) =>
-          a.name.localeCompare(b.name),
-        ),
-      )
-      return folder
+  const deleteFolder = useCallback(
+    async (id: string) => {
+      setFiles((prev) => prev.map((f) => (f.folder_id === id ? { ...f, folder_id: null } : f)))
+      await removeFolder(id)
     },
-    [workspace],
+    [removeFolder],
   )
-
-  const renameFolder = useCallback(async (id: string, name: string) => {
-    setFolders((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, name } : f)).sort((a, b) => a.name.localeCompare(b.name)),
-    )
-    await service.renameFolder(id, name).catch(console.error)
-  }, [])
-
-  const deleteFolder = useCallback(async (id: string) => {
-    setFolders((prev) => prev.filter((f) => f.id !== id))
-    setFiles((prev) => prev.map((f) => (f.folder_id === id ? { ...f, folder_id: null } : f)))
-    await service.deleteFolder(id).catch(console.error)
-  }, [])
 
   return { files, folders, uploads, upload, remove, moveFile, createFolder, renameFolder, deleteFolder }
 }

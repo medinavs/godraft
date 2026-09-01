@@ -1,8 +1,7 @@
 import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from '@/shared/lib/supabase'
-import type { FileItem, Folder } from './types'
+import type { FileItem } from './types'
 
 const TABLE = 'files'
-const FOLDERS = 'folders'
 const BUCKET = 'files'
 export const MAX_FILE_BYTES = 25 * 1024 * 1024 // 25MB - keep uploads within free-tier sanity
 
@@ -59,36 +58,6 @@ export async function uploadFile(
 
 export async function moveFile(id: string, folderId: string | null): Promise<void> {
   const { error } = await supabase.from(TABLE).update({ folder_id: folderId }).eq('id', id)
-  if (error) throw error
-}
-
-export async function fetchFolders(workspace: string): Promise<Folder[]> {
-  const { data, error } = await supabase
-    .from(FOLDERS)
-    .select('*')
-    .eq('workspace', workspace)
-    .order('name')
-  if (error) throw error
-  return data as Folder[]
-}
-
-export async function createFolder(workspace: string, name: string): Promise<Folder> {
-  const { data, error } = await supabase
-    .from(FOLDERS)
-    .insert({ workspace, name })
-    .select()
-    .single()
-  if (error) throw error
-  return data as Folder
-}
-
-export async function renameFolder(id: string, name: string): Promise<void> {
-  const { error } = await supabase.from(FOLDERS).update({ name }).eq('id', id)
-  if (error) throw error
-}
-
-export async function deleteFolder(id: string): Promise<void> {
-  const { error } = await supabase.from(FOLDERS).delete().eq('id', id)
   if (error) throw error
 }
 

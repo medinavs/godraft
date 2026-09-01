@@ -38,8 +38,8 @@ function Workspace({ name, wkey, onLeave }: { name: string; wkey: string; onLeav
 
   const active = notes.find((n) => n.id === activeId) ?? null
 
-  const newNote = async () => {
-    const note = await create()
+  const newNote = async (folderId: string | null = null) => {
+    const note = await create({ folder_id: folderId })
     setActiveId(note.id)
   }
 
@@ -80,7 +80,9 @@ function Workspace({ name, wkey, onLeave }: { name: string; wkey: string; onLeav
           onDelete={remove}
           onDuplicate={duplicate}
           onTogglePin={(n) => update(n.id, { pinned: !n.pinned })}
+          onMoveNote={(id, folderId) => update(id, { folder_id: folderId })}
           onLeave={onLeave}
+          workspace={wkey}
           filesTab={<FilesPanel workspace={wkey} />}
         />
 
@@ -91,7 +93,7 @@ function Workspace({ name, wkey, onLeave }: { name: string; wkey: string; onLeav
             <div className="flex h-full flex-col items-center justify-center gap-4 text-muted">
               <FileText className="h-10 w-10" />
               <p className="text-sm">{loading ? 'Loading…' : 'No note selected'}</p>
-              <Button onClick={newNote}>Create your first note</Button>
+              <Button onClick={() => void newNote()}>Create your first note</Button>
             </div>
           )}
         </main>

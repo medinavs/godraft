@@ -79,6 +79,7 @@ export function useNotes(workspace: string) {
         content: note.content,
         mode: note.mode,
         language: note.language,
+        folder_id: note.folder_id,
       }),
     [create],
   )
