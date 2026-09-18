@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useFiles } from './useFiles'
 import { downloadUrl, isImage, publicUrl } from './filesService'
+import { downloadZip } from '@/shared/lib/zip'
 import type { FileItem } from './types'
 import type { Folder } from '@/features/folders/foldersService'
 import { useDialog } from '@/shared/components/ui/dialog'
@@ -32,6 +33,7 @@ export function FilesPanel({ workspace }: { workspace: string }) {
   const [dragging, setDragging] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [folderId, setFolderId] = useState<string | null>(null)
+  const [zipping, setZipping] = useState<string | null>(null)
 
   useEffect(() => {
     if (folderId && !folders.some((f) => f.id === folderId)) setFolderId(null)
@@ -45,6 +47,20 @@ export function FilesPanel({ workspace }: { workspace: string }) {
     await navigator.clipboard.writeText(publicUrl(item.path))
     setCopiedId(item.id)
     setTimeout(() => setCopiedId(null), 1500)
+  }
+
+  const zipFolder = async (id: string | null) => {
+    const items = files.filter((f) => f.folder_id === id)
+    if (!items.length) return
+    const name = id ? (folders.find((f) => f.id === id)?.name ?? 'folder') : 'all-files'
+    setZipping(id ?? 'root')
+    try {
+      await downloadZip(name, items.map((f) => ({ name: f.name, url: publicUrl(f.path) })))
+    } catch (err) {
+      await dlg.confirm({ title: 'Download failed', message: (err as Error).message, confirmText: 'OK' })
+    } finally {
+      setZipping(null)
+    }
   }
 
   const newFolder = async () => {
@@ -79,6 +95,18 @@ export function FilesPanel({ workspace }: { workspace: string }) {
           {folderId ? `${visibleFiles.length} in folder` : `${files.length} file${files.length === 1 ? '' : 's'}`}
         </span>
         <div className="flex items-center gap-1">
+          {visibleFiles.length > 0 && (
+            <button
+              type="button"
+              onClick={() => void zipFolder(folderId)}
+              disabled={zipping !== null}
+              title={folderId ? 'Download folder as .zip' : 'Download all files as .zip'}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-elevated hover:text-fg disabled:opacity-50"
+            >
+              <Download className="h-3.5 w-3.5" />
+              {zipping !== null ? 'Zipping…' : 'Zip'}
+            </button>
+          )}
           <button
             type="button"
             onClick={newFolder}
@@ -151,6 +179,8 @@ export function FilesPanel({ workspace }: { workspace: string }) {
                       void deleteFolder(folder.id)
                   }}
                   onDropInto={dropInto(folder.id)}
+                  onDownload={() => void zipFolder(folder.id)}
+                  downloading={zipping === folder.id}
                 />
               ))}
 
@@ -229,6 +259,8 @@ function FolderTile({
   onRename,
   onDelete,
   onDropInto,
+  onDownload,
+  downloading,
 }: {
   folder: Folder
   count: number
@@ -236,6 +268,8 @@ function FolderTile({
   onRename: () => void
   onDelete: () => void
   onDropInto: (e: React.DragEvent) => void
+  onDownload: () => void
+  downloading: boolean
 }) {
   const [over, setOver] = useState(false)
   return (
@@ -257,8 +291,15 @@ function FolderTile({
         }`}
       >
         <FolderIcon className="h-8 w-8 text-primary" />
-        <span className="text-[10px] text-muted">{count} file{count === 1 ? '' : 's'}</span>
+        <span className="text-[10px] text-muted">
+          {downloading ? 'Zipping…' : `${count} file${count === 1 ? '' : 's'}`}
+        </span>
         <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-gradient-to-t from-black/70 to-transparent p-1 opacity-0 transition-opacity group-hover:opacity-100">
+          {count > 0 && (
+            <IconBtn title="Download as .zip" onClick={(e) => stop(e, onDownload)}>
+              <Download className="h-3.5 w-3.5" />
+            </IconBtn>
+          )}
           <IconBtn title="Rename" onClick={(e) => stop(e, onRename)}>
             <Pencil className="h-3.5 w-3.5" />
           </IconBtn>
