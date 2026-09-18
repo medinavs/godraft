@@ -1,14 +1,22 @@
-import { zip } from 'fflate'
+import { strToU8, zip } from 'fflate'
 
-/** Fetches each url and saves them as one .zip. Duplicate names get a (n) suffix. */
-export async function downloadZip(zipName: string, entries: { name: string; url: string }[]): Promise<void> {
+export type ZipEntry = { name: string } & ({ url: string } | { text: string })
+
+/** Zips remote files (url) and/or inline content (text) and saves it. Duplicate names get a (n) suffix. */
+export async function downloadZip(zipName: string, entries: ZipEntry[]): Promise<void> {
   const files: Record<string, Uint8Array> = {}
 
   await Promise.all(
-    entries.map(async ({ name, url }) => {
-      const res = await fetch(url)
-      if (!res.ok) throw new Error(`Failed to download ${name}`)
-      files[uniqueName(files, name)] = new Uint8Array(await res.arrayBuffer())
+    entries.map(async (entry) => {
+      let data: Uint8Array
+      if ('text' in entry) {
+        data = strToU8(entry.text)
+      } else {
+        const res = await fetch(entry.url)
+        if (!res.ok) throw new Error(`Failed to download ${entry.name}`)
+        data = new Uint8Array(await res.arrayBuffer())
+      }
+      files[uniqueName(files, entry.name)] = data
     }),
   )
 

@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useState, type ReactNode } from 'react'
 import {
   ChevronLeft,
   Copy,
+  Download,
   Folder as FolderIcon,
   FolderPlus,
   LogOut,
@@ -17,6 +18,7 @@ import { Input } from '@/shared/components/ui/input'
 import { useDialog } from '@/shared/components/ui/dialog'
 import { useFolders } from '@/features/folders/useFolders'
 import { timeAgo } from '@/shared/lib/utils'
+import { downloadZip } from '@/shared/lib/zip'
 import type { Note } from './types'
 
 const DRAG_TYPE = 'text/godraft-note'
@@ -62,6 +64,7 @@ export const NotesSidebar = forwardRef<HTMLInputElement, Props>(function NotesSi
   const { folders, createFolder, renameFolder, deleteFolder } = useFolders(workspace, 'note')
   const [folderId, setFolderId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
+  const [zipping, setZipping] = useState<string | null>(null)
 
   useEffect(() => {
     if (folderId && !folders.some((f) => f.id === folderId)) setFolderId(null)
@@ -75,6 +78,23 @@ export const NotesSidebar = forwardRef<HTMLInputElement, Props>(function NotesSi
   const newFolder = async () => {
     const name = (await dlg.prompt({ title: 'New folder', placeholder: 'Folder name', confirmText: 'Create' }))?.trim()
     if (name) void createFolder(name)
+  }
+
+  const zipFolder = async (id: string | null) => {
+    const items = notes.filter((n) => n.folder_id === id)
+    if (!items.length) return
+    const name = id ? (folders.find((f) => f.id === id)?.name ?? 'folder') : 'all-notes'
+    setZipping(id ?? 'root')
+    try {
+      await downloadZip(
+        name,
+        items.map((n) => ({ name: `${(n.title.trim() || 'untitled').replace(/[\\/:*?"<>|]+/g, '-')}.md`, text: n.content })),
+      )
+    } catch (err) {
+      await dlg.confirm({ title: 'Download failed', message: (err as Error).message, confirmText: 'OK' })
+    } finally {
+      setZipping(null)
+    }
   }
   const dropNote = (target: string | null) => (e: React.DragEvent) => {
     e.preventDefault()
@@ -126,6 +146,17 @@ export const NotesSidebar = forwardRef<HTMLInputElement, Props>(function NotesSi
                 className="pl-8"
               />
             </div>
+            {!searching && shownNotes.length > 0 && (
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => void zipFolder(folderId)}
+                disabled={zipping !== null}
+                title={folderId ? 'Download folder as .zip' : 'Download all notes as .zip'}
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+            )}
             <Button size="icon" variant="ghost" onClick={newFolder} title="New folder">
               <FolderPlus className="h-4 w-4" />
             </Button>
@@ -166,8 +197,15 @@ export const NotesSidebar = forwardRef<HTMLInputElement, Props>(function NotesSi
                 >
                   <FolderIcon className="h-4 w-4 shrink-0 text-primary" />
                   <span className="flex-1 truncate text-sm font-medium text-fg">{folder.name}</span>
-                  <span className="text-xs text-muted group-hover:hidden">{countIn(folder.id)}</span>
+                  <span className="text-xs text-muted group-hover:hidden">
+                    {zipping === folder.id ? '…' : countIn(folder.id)}
+                  </span>
                   <div className="hidden items-center gap-0.5 group-hover:flex">
+                    {countIn(folder.id) > 0 && (
+                      <IconBtn title="Download as .zip" onClick={(e) => stop(e, () => void zipFolder(folder.id))}>
+                        <Download className="h-3.5 w-3.5" />
+                      </IconBtn>
+                    )}
                     <IconBtn
                       title="Rename"
                       onClick={(e) =>
