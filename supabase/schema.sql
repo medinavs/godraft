@@ -87,3 +87,55 @@ create policy "files bucket insert" on storage.objects
 drop policy if exists "files bucket delete" on storage.objects;
 create policy "files bucket delete" on storage.objects
   for delete using (bucket_id = 'files');
+
+-- Repos: code folders pasted/dropped into the Repos tab --------------------
+-- Metadata in `repos`, one row per file in `repo_files`. Text files up to 1MB
+-- live inline in `content` (searchable via trigram index); binaries and larger
+-- text go to the 'files' bucket under <workspace>/repos/<repo>/<sha256>.
+
+create extension if not exists pg_trgm;
+
+create table if not exists public.repos (
+  id uuid primary key default gen_random_uuid(),
+  workspace text not null,
+  name text not null,
+  file_count int not null default 0,
+  dir_count int not null default 0,
+  size bigint not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (workspace, name)
+);
+
+alter table public.repos enable row level security;
+
+drop policy if exists "anon full access" on public.repos;
+create policy "anon full access" on public.repos
+  for all using (true) with check (true);
+
+alter publication supabase_realtime add table public.repos;
+
+create table if not exists public.repo_files (
+  id uuid primary key default gen_random_uuid(),
+  repo_id uuid not null references public.repos(id) on delete cascade,
+  path text not null,                      -- repo-relative, '/'-separated
+  size bigint not null,
+  hash text not null,                      -- sha-256: re-imports skip unchanged files
+  binary boolean not null default false,
+  content text,                            -- null = bytes live in storage_path
+  storage_path text,
+  unique (repo_id, path)
+);
+
+create index if not exists repo_files_content_trgm on public.repo_files using gin (content gin_trgm_ops);
+
+alter table public.repo_files enable row level security;
+
+drop policy if exists "anon full access" on public.repo_files;
+create policy "anon full access" on public.repo_files
+  for all using (true) with check (true);
+
+-- re-imports overwrite content-addressed blobs (upsert)
+drop policy if exists "files bucket update" on storage.objects;
+create policy "files bucket update" on storage.objects
+  for update using (bucket_id = 'files');

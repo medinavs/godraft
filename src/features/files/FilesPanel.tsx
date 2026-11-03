@@ -16,14 +16,9 @@ import { downloadZip } from '@/shared/lib/zip'
 import type { FileItem } from './types'
 import type { Folder } from '@/features/folders/foldersService'
 import { useDialog } from '@/shared/components/ui/dialog'
+import { formatBytes } from '@/shared/lib/utils'
 
 const DRAG_TYPE = 'text/godraft-file'
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`
-  return `${(n / 1024 / 1024).toFixed(1)} MB`
-}
 
 export function FilesPanel({ workspace }: { workspace: string }) {
   const { files, folders, uploads, upload, remove, moveFile, createFolder, renameFolder, deleteFolder } =

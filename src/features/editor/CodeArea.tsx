@@ -15,10 +15,12 @@ export function CodeArea({
   value,
   language,
   onChange,
+  readOnly = false,
 }: {
   value: string
   language: Language
-  onChange: (v: string) => void
+  onChange?: (v: string) => void
+  readOnly?: boolean
 }) {
   const extensions = useMemo(
     () => [...languageExtension(language), transparentTheme, EditorView.lineWrapping],
@@ -28,6 +30,8 @@ export function CodeArea({
     <CodeMirror
       value={value}
       onChange={onChange}
+      readOnly={readOnly}
+      editable={!readOnly}
       extensions={extensions}
       theme={oneDark}
       height="100%"

@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { FileText } from 'lucide-react'
+import { FileText, FolderGit2 } from 'lucide-react'
 import { supabaseConfigured } from '@/shared/lib/supabase'
 import { Button } from '@/shared/components/ui/button'
 import { useWorkspace } from '@/features/workspace/useWorkspace'
 import { SecretGate } from '@/features/workspace/SecretGate'
 import { useNotes } from '@/features/notes/useNotes'
-import { NotesSidebar } from '@/features/notes/NotesSidebar'
+import { NotesSidebar, type SidebarTab } from '@/features/notes/NotesSidebar'
 import { EditorPane } from '@/features/editor/EditorPane'
 import { FilesPanel } from '@/features/files/FilesPanel'
+import { useRepos } from '@/features/repos/useRepos'
+import { ReposPanel } from '@/features/repos/ReposPanel'
+import { RepoExplorer } from '@/features/repos/RepoExplorer'
 
 export default function App() {
   const { workspace, ready, enter, leave } = useWorkspace()
@@ -22,6 +25,10 @@ function Workspace({ name, wkey, onLeave }: { name: string; wkey: string; onLeav
   const [activeId, setActiveId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
+  const [tab, setTab] = useState<SidebarTab>('notes')
+  const repos = useRepos(wkey)
+  const [repoId, setRepoId] = useState<string | null>(null)
+  const activeRepo = repos.repos.find((r) => r.id === repoId) ?? null
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -83,11 +90,23 @@ function Workspace({ name, wkey, onLeave }: { name: string; wkey: string; onLeav
           onMoveNote={(id, folderId) => update(id, { folder_id: folderId })}
           onLeave={onLeave}
           workspace={wkey}
+          tab={tab}
+          onTab={setTab}
           filesTab={<FilesPanel workspace={wkey} />}
+          reposTab={<ReposPanel api={repos} activeId={repoId} onOpen={setRepoId} />}
         />
 
         <main className="min-w-0 flex-1">
-          {active ? (
+          {tab === 'repos' ? (
+            activeRepo ? (
+              <RepoExplorer key={activeRepo.id} repo={activeRepo} />
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center gap-4 text-muted">
+                <FolderGit2 className="h-10 w-10" />
+                <p className="text-sm">Paste a repository (Ctrl+V) or pick one from the list</p>
+              </div>
+            )
+          ) : active ? (
             <EditorPane note={active} onUpdate={update} />
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-4 text-muted">

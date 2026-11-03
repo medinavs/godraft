@@ -30,6 +30,7 @@ src/
     workspace/             secret → workspace hook + SecretGate
     notes/                 types, service (Supabase CRUD), useNotes (realtime), sidebar
     editor/                EditorPane, CodeArea, language mapping
+    repos/                 
   shared/
     lib/                   supabase client, cn/hash/time utils
     components/ui/         button, input (shadcn-style)

@@ -23,6 +23,8 @@ import type { Note } from './types'
 
 const DRAG_TYPE = 'text/godraft-note'
 
+export type SidebarTab = 'notes' | 'files' | 'repos'
+
 interface Props {
   workspace: string
   workspaceName: string
@@ -37,7 +39,10 @@ interface Props {
   onTogglePin: (note: Note) => void
   onMoveNote: (id: string, folderId: string | null) => void
   onLeave: () => void
+  tab: SidebarTab
+  onTab: (tab: SidebarTab) => void
   filesTab?: ReactNode
+  reposTab?: ReactNode
 }
 
 export const NotesSidebar = forwardRef<HTMLInputElement, Props>(function NotesSidebar(
@@ -55,11 +60,13 @@ export const NotesSidebar = forwardRef<HTMLInputElement, Props>(function NotesSi
     onTogglePin,
     onMoveNote,
     onLeave,
+    tab,
+    onTab,
     filesTab,
+    reposTab,
   },
   searchRef,
 ) {
-  const [tab, setTab] = useState<'notes' | 'files'>('notes')
   const dlg = useDialog()
   const { folders, createFolder, renameFolder, deleteFolder } = useFolders(workspace, 'note')
   const [folderId, setFolderId] = useState<string | null>(null)
@@ -119,11 +126,11 @@ export const NotesSidebar = forwardRef<HTMLInputElement, Props>(function NotesSi
       </div>
 
       <div className="flex items-center gap-1 px-3 pb-2">
-        {(['notes', 'files'] as const).map((t) => (
+        {(['notes', 'files', 'repos'] as const).map((t) => (
           <button
             key={t}
             type="button"
-            onClick={() => setTab(t)}
+            onClick={() => onTab(t)}
             className={`flex-1 rounded-lg px-3 py-1.5 text-sm font-medium capitalize transition-colors ${
               tab === t ? 'bg-elevated text-fg' : 'text-muted hover:text-fg'
             }`}
@@ -280,7 +287,7 @@ export const NotesSidebar = forwardRef<HTMLInputElement, Props>(function NotesSi
           </div>
         </>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col">{filesTab}</div>
+        <div className="flex min-h-0 flex-1 flex-col">{tab === 'files' ? filesTab : reposTab}</div>
       )}
     </aside>
   )
