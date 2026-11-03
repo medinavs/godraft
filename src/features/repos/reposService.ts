@@ -1,5 +1,6 @@
 import { supabase } from '@/shared/lib/supabase'
 import { publicUrl } from '@/features/files/filesService'
+import { downloadZip, type ZipEntry } from '@/shared/lib/zip'
 import type { Incoming } from './clipboard'
 import { countDirs, decodeText, INLINE_TEXT_MAX, pool, sha256, type Rejected } from './repoTree'
 
@@ -99,6 +100,25 @@ export async function searchContent(repoId: string, q: string): Promise<string[]
     .limit(200)
   if (error) throw error
   return data.map((r) => r.id as string)
+}
+
+/** Downloads the repo as <name>.zip with its folder structure. Inline text is paged in, blobs fetched by url. */
+export async function exportRepo(repo: Repo): Promise<void> {
+  const entries: ZipEntry[] = []
+  for (;;) {
+    // small pages: rows carry full file content
+    const { data, error } = await supabase
+      .from('repo_files')
+      .select('path,content,storage_path')
+      .eq('repo_id', repo.id)
+      .order('path')
+      .range(entries.length, entries.length + 199)
+    if (error) throw error
+    if (!data.length) break
+    for (const f of data)
+      entries.push(f.storage_path ? { name: f.path, url: publicUrl(f.storage_path) } : { name: f.path, text: f.content ?? '' })
+  }
+  await downloadZip(repo.name, entries)
 }
 
 async function removeBlobs(paths: string[]) {

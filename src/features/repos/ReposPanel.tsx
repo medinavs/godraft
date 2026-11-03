@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { ClipboardPaste, FolderGit2, FolderOpen, Loader2, RefreshCw, Search, Trash2, X } from 'lucide-react'
+import { ClipboardPaste, Download, FolderGit2, FolderOpen, Loader2, RefreshCw, Search, Trash2, X } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { useDialog } from '@/shared/components/ui/dialog'
 import { formatBytes, timeAgo } from '@/shared/lib/utils'
-import type { Repo } from './reposService'
+import { exportRepo, type Repo } from './reposService'
 import type { ImportState, ReposApi } from './useRepos'
 
 const hasFiles = (dt: DataTransfer) => dt.files.length > 0 || Array.from(dt.items).some((i) => i.kind === 'file')
@@ -24,6 +24,7 @@ export function ReposPanel({
   const [query, setQuery] = useState('')
   const [target, setTarget] = useState<Repo | null>(null) // set by "Update": next paste replaces this repo
   const [dragging, setDragging] = useState(false)
+  const [zipping, setZipping] = useState<string | null>(null)
   const busy = state.phase === 'detecting' || state.phase === 'importing'
 
   const start = (src: DataTransfer | FileList) => {
@@ -44,6 +45,17 @@ export function ReposPanel({
     window.addEventListener('paste', h)
     return () => window.removeEventListener('paste', h)
   })
+
+  const download = async (repo: Repo) => {
+    setZipping(repo.id)
+    try {
+      await exportRepo(repo)
+    } catch (err) {
+      await dlg.confirm({ title: 'Download failed', message: (err as Error).message, confirmText: 'OK' })
+    } finally {
+      setZipping(null)
+    }
+  }
 
   const q = query.trim().toLowerCase()
   const shown = q ? repos.filter((r) => r.name.toLowerCase().includes(q)) : repos
@@ -122,9 +134,18 @@ export function ReposPanel({
             </div>
             <div className="mt-0.5 flex items-center justify-between">
               <span className="text-xs text-muted" title={new Date(repo.updated_at).toLocaleString()}>
-                {repo.file_count} files · {formatBytes(repo.size)} · {timeAgo(repo.updated_at)}
+                {zipping === repo.id
+                  ? 'Zipping…'
+                  : `${repo.file_count} files · ${formatBytes(repo.size)} · ${timeAgo(repo.updated_at)}`}
               </span>
               <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                <IconBtn
+                  title="Download as .zip"
+                  disabled={zipping !== null}
+                  onClick={(e) => stop(e, () => void download(repo))}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </IconBtn>
                 <IconBtn title="Update (paste a new version)" onClick={(e) => stop(e, () => setTarget(repo))}>
                   <RefreshCw className="h-3.5 w-3.5" />
                 </IconBtn>
