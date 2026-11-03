@@ -40,6 +40,7 @@ export interface ImportReport {
   uploaded: number
   unchanged: number
   removed: number
+  excluded: number
   failed: Rejected[]
   cancelled: boolean
 }
@@ -103,7 +104,7 @@ export async function searchContent(repoId: string, q: string): Promise<string[]
 }
 
 /** Downloads the repo as <name>.zip with its folder structure. Inline text is paged in, blobs fetched by url. */
-export async function exportRepo(repo: Repo): Promise<void> {
+export async function exportRepo(repo: Repo, onProgress?: (done: number, total: number) => void): Promise<void> {
   const entries: ZipEntry[] = []
   for (;;) {
     // small pages: rows carry full file content
@@ -118,11 +119,45 @@ export async function exportRepo(repo: Repo): Promise<void> {
     for (const f of data)
       entries.push(f.storage_path ? { name: f.path, url: publicUrl(f.storage_path) } : { name: f.path, text: f.content ?? '' })
   }
-  await downloadZip(repo.name, entries)
+  await downloadZip(repo.name, entries, onProgress)
 }
 
 async function removeBlobs(paths: string[]) {
   for (const c of chunks(paths, 100)) await supabase.storage.from(BUCKET).remove(c)
+}
+
+async function deleteRows(files: RepoFile[]) {
+  for (const c of chunks(files, 200)) {
+    const { error } = await supabase.from('repo_files').delete().in('id', c.map((f) => f.id))
+    if (error) throw error
+  }
+}
+
+/** Removes blobs referenced by `before` that nothing in `after` points at anymore (blobs are shared by hash). */
+async function removeOrphans(before: RepoFile[], after: Iterable<{ storage_path: string | null }>) {
+  const live = new Set([...after].map((f) => f.storage_path))
+  await removeBlobs([...new Set(before.flatMap((f) => (f.storage_path && !live.has(f.storage_path) ? [f.storage_path] : [])))])
+}
+
+async function saveStats(repoId: string, files: Map<string, { size: number }>): Promise<Repo> {
+  const stats = {
+    file_count: files.size,
+    dir_count: countDirs(files.keys()),
+    size: [...files.values()].reduce((n, f) => n + f.size, 0),
+    updated_at: new Date().toISOString(),
+  }
+  const { data, error } = await supabase.from('repos').update(stats).eq('id', repoId).select().single()
+  if (error) throw error
+  return data as Repo
+}
+
+/** Deletes every file under `dir`. `files` is the repo's current listing (as shown in the explorer). */
+export async function deleteFolder(repoId: string, files: RepoFile[], dir: string): Promise<Repo> {
+  const inside = (f: RepoFile) => f.path.startsWith(dir + '/')
+  const kept = files.filter((f) => !inside(f))
+  await deleteRows(files.filter(inside))
+  await removeOrphans(files, kept)
+  return saveStats(repoId, new Map(kept.map((f) => [f.path, f])))
 }
 
 export async function deleteRepo(repo: Repo): Promise<void> {
@@ -224,41 +259,30 @@ export async function importRepo(opts: {
   if (!signal.aborted) {
     const incoming = new Set(files.map((f) => f.path))
     const gone = existing.filter((f) => !incoming.has(f.path))
-    for (const c of chunks(gone, 200)) {
-      const { error } = await supabase.from('repo_files').delete().in('id', c.map((f) => f.id))
-      if (error) throw error
-    }
+    await deleteRows(gone)
     gone.forEach((f) => final.delete(f.path))
     removed = gone.length
   }
-  const live = new Set([...final.values()].map((f) => f.storage_path))
-  await removeBlobs([...new Set(existing.flatMap((f) => (f.storage_path && !live.has(f.storage_path) ? [f.storage_path] : [])))])
+  await removeOrphans(existing, final.values())
 
   if (!target && final.size === 0) {
     await deleteRepo(repo)
     throw new Error(failed[0] ? `Nothing was imported: ${failed[0].reason}` : 'Nothing was imported.')
   }
 
-  const stats = {
-    file_count: final.size,
-    dir_count: countDirs(final.keys()),
-    size: [...final.values()].reduce((n, f) => n + f.size, 0),
-    updated_at: new Date().toISOString(),
-  }
-  const { data, error } = await supabase.from('repos').update(stats).eq('id', repoId).select().single()
-  if (error) throw error
-
+  const saved = await saveStats(repoId, final)
   return {
-    repo: data as Repo,
+    repo: saved,
     report: {
-      name: repo.name,
-      files: stats.file_count,
-      dirs: stats.dir_count,
-      size: stats.size,
-      at: stats.updated_at,
+      name: saved.name,
+      files: saved.file_count,
+      dirs: saved.dir_count,
+      size: saved.size,
+      at: saved.updated_at,
       uploaded,
       unchanged,
       removed,
+      excluded: 0,
       failed,
       cancelled: signal.aborted,
     },

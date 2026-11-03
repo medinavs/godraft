@@ -34,6 +34,10 @@ assert.equal(p.root, 'atoken')
 assert.deepStrictEqual(p.files.map((x) => x.path), ['go.mod', 'cmd/api/main.go', '.gitignore'])
 assert.deepStrictEqual(p.rejected.map((r) => r.reason), ['duplicate path', 'invalid path', 'larger than 25 MB'])
 assert.equal(p.bytes, 3)
+const ex = prepare([f('/r/.git/HEAD'), f('/r/.git/objects/ab/cd'), f('/r/sub/.git/x'), f('/r/.gitignore'), f('/r/a.go')], ['.git'])
+assert.deepStrictEqual(ex.files.map((x) => x.path), ['.gitignore', 'a.go']) // .gitignore is a file, kept
+assert.equal(ex.excluded, 3)
+assert.equal(ex.rejected.length, 0)
 assert.equal(prepare([f('a.go'), f('src/b.go')]).root, null) // loose files: no root
 assert.equal(prepare([f('repo/a'), f('repo2/b')]).root, null)
 

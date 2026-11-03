@@ -2,21 +2,37 @@ import { strToU8, zip } from 'fflate'
 
 export type ZipEntry = { name: string } & ({ url: string } | { text: string })
 
+const CONCURRENCY = 6 // thousands of parallel fetches exhaust the browser and trip storage rate limits
+
+/** Retries network errors, 429 and 5xx with exponential backoff. */
+async function fetchBytes(url: string, name: string): Promise<Uint8Array> {
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(url).catch(() => null)
+    if (res?.ok) return new Uint8Array(await res.arrayBuffer())
+    const retryable = !res || res.status === 429 || res.status >= 500
+    if (!retryable || attempt === 5) throw new Error(`Failed to download ${name}${res ? ` (${res.status})` : ''}`)
+    await new Promise((r) => setTimeout(r, 500 * 2 ** attempt))
+  }
+}
+
 /** Zips remote files (url) and/or inline content (text) and saves it. Duplicate names get a (n) suffix. */
-export async function downloadZip(zipName: string, entries: ZipEntry[]): Promise<void> {
+export async function downloadZip(
+  zipName: string,
+  entries: ZipEntry[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<void> {
   const files: Record<string, Uint8Array> = {}
+  let next = 0
+  let done = 0
 
   await Promise.all(
-    entries.map(async (entry) => {
-      let data: Uint8Array
-      if ('text' in entry) {
-        data = strToU8(entry.text)
-      } else {
-        const res = await fetch(entry.url)
-        if (!res.ok) throw new Error(`Failed to download ${entry.name}`)
-        data = new Uint8Array(await res.arrayBuffer())
+    Array.from({ length: Math.min(CONCURRENCY, entries.length) }, async () => {
+      while (next < entries.length) {
+        const entry = entries[next++]
+        const data = 'text' in entry ? strToU8(entry.text) : await fetchBytes(entry.url, entry.name)
+        files[uniqueName(files, entry.name)] = data
+        onProgress?.(++done, entries.length)
       }
-      files[uniqueName(files, entry.name)] = data
     }),
   )
 

@@ -99,7 +99,7 @@ function Workspace({ name, wkey, onLeave }: { name: string; wkey: string; onLeav
         <main className="min-w-0 flex-1">
           {tab === 'repos' ? (
             activeRepo ? (
-              <RepoExplorer key={activeRepo.id} repo={activeRepo} />
+              <RepoExplorer key={activeRepo.id} repo={activeRepo} onUpdated={repos.upsertLocal} />
             ) : (
               <div className="flex h-full flex-col items-center justify-center gap-4 text-muted">
                 <FolderGit2 className="h-10 w-10" />

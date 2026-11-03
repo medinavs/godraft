@@ -20,14 +20,19 @@ export function sanitizePath(raw: string): string | null {
   return parts.join('/')
 }
 
-/** Validates paths, drops duplicates/oversized files and strips a shared top folder (the pasted repo itself). */
-export function prepare<T extends { path: string; file: { size: number } }>(raw: T[]) {
+/**
+ * Validates paths, drops duplicates/oversized files and strips a shared top folder (the pasted repo itself).
+ * `exclude` holds folder names skipped at any depth (e.g. '.git'); they're counted, not reported as failures.
+ */
+export function prepare<T extends { path: string; file: { size: number } }>(raw: T[], exclude: string[] = []) {
   const rejected: Rejected[] = []
   const seen = new Set<string>()
   let files: T[] = []
+  let excluded = 0
   for (const r of raw) {
     const path = sanitizePath(r.path)
     if (!path) rejected.push({ path: r.path, reason: 'invalid path' })
+    else if (path.split('/').slice(0, -1).some((d) => exclude.includes(d))) excluded++
     else if (seen.has(path)) rejected.push({ path, reason: 'duplicate path' })
     else if (r.file.size > REPO_MAX_FILE_BYTES)
       rejected.push({ path, reason: `larger than ${REPO_MAX_FILE_BYTES / 1024 / 1024} MB` })
@@ -40,7 +45,7 @@ export function prepare<T extends { path: string; file: { size: number } }>(raw:
   const root = first && files.every((f) => f.path.startsWith(first + '/')) ? first : null
   if (root) files = files.map((f) => ({ ...f, path: f.path.slice(root.length + 1) }))
   const bytes = files.reduce((n, f) => n + f.file.size, 0)
-  return { root, files, rejected, bytes }
+  return { root, files, rejected, bytes, excluded }
 }
 
 export interface TreeNode {

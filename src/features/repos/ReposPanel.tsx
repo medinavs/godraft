@@ -7,6 +7,8 @@ import { formatBytes, timeAgo } from '@/shared/lib/utils'
 import { exportRepo, type Repo } from './reposService'
 import type { ImportState, ReposApi } from './useRepos'
 
+const SKIP_GIT_KEY = 'godraft.repos.skipGit'
+
 const hasFiles = (dt: DataTransfer) => dt.files.length > 0 || Array.from(dt.items).some((i) => i.kind === 'file')
 
 export function ReposPanel({
@@ -24,11 +26,12 @@ export function ReposPanel({
   const [query, setQuery] = useState('')
   const [target, setTarget] = useState<Repo | null>(null) // set by "Update": next paste replaces this repo
   const [dragging, setDragging] = useState(false)
-  const [zipping, setZipping] = useState<string | null>(null)
+  const [skipGit, setSkipGit] = useState(() => localStorage.getItem(SKIP_GIT_KEY) !== '0')
+  const [zipping, setZipping] = useState<{ id: string; done: number; total: number } | null>(null)
   const busy = state.phase === 'detecting' || state.phase === 'importing'
 
   const start = (src: DataTransfer | FileList) => {
-    importFrom(src, target)
+    importFrom(src, target, skipGit ? ['.git'] : [])
     setTarget(null)
   }
 
@@ -47,9 +50,9 @@ export function ReposPanel({
   })
 
   const download = async (repo: Repo) => {
-    setZipping(repo.id)
+    setZipping({ id: repo.id, done: 0, total: repo.file_count })
     try {
-      await exportRepo(repo)
+      await exportRepo(repo, (done, total) => setZipping({ id: repo.id, done, total }))
     } catch (err) {
       await dlg.confirm({ title: 'Download failed', message: (err as Error).message, confirmText: 'OK' })
     } finally {
@@ -107,6 +110,18 @@ export function ReposPanel({
         <p className="mt-1 text-xs text-muted">
           Copy a folder (or a .zip of it) and press Ctrl+V — or drop it here.
         </p>
+        <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted hover:text-fg">
+          <input
+            type="checkbox"
+            checked={skipGit}
+            onChange={(e) => {
+              setSkipGit(e.target.checked)
+              localStorage.setItem(SKIP_GIT_KEY, e.target.checked ? '1' : '0')
+            }}
+            className="accent-primary"
+          />
+          Skip <code>.git</code> folder
+        </label>
         {target && (
           <button type="button" onClick={() => setTarget(null)} className="mt-2 text-xs text-muted hover:text-fg">
             Cancel update
@@ -134,8 +149,8 @@ export function ReposPanel({
             </div>
             <div className="mt-0.5 flex items-center justify-between">
               <span className="text-xs text-muted" title={new Date(repo.updated_at).toLocaleString()}>
-                {zipping === repo.id
-                  ? 'Zipping…'
+                {zipping?.id === repo.id
+                  ? `Zipping… ${zipping.done}/${zipping.total}`
                   : `${repo.file_count} files · ${formatBytes(repo.size)} · ${timeAgo(repo.updated_at)}`}
               </span>
               <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
@@ -237,6 +252,7 @@ function ImportStatus({ state, onCancel, onDismiss }: { state: ImportState; onCa
           <dt>Changes</dt>
           <dd className="text-fg">
             {state.report.uploaded} saved · {state.report.unchanged} unchanged · {state.report.removed} removed
+            {state.report.excluded > 0 && ` · ${state.report.excluded} excluded`}
           </dd>
         </dl>
       )}

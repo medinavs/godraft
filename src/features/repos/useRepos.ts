@@ -57,9 +57,14 @@ export function useRepos(workspace: string) {
     }
   }, [workspace])
 
+  const upsertLocal = useCallback(
+    (repo: Repo) => setRepos((prev) => [...prev.filter((r) => r.id !== repo.id), repo].sort(byUpdated)),
+    [],
+  )
+
   /** Must be called synchronously from the paste/drop/change handler (see collect). */
   const importFrom = useCallback(
-    (src: DataTransfer | FileList, target: Repo | null = null) => {
+    (src: DataTransfer | FileList, target: Repo | null = null, exclude: string[] = []) => {
       if (abort.current) return // one import at a time
       const received = collect(src)
       const ctl = new AbortController()
@@ -69,8 +74,10 @@ export function useRepos(workspace: string) {
       void (async () => {
         try {
           const got = await received
-          const prep = prepare(got.files)
+          const prep = prepare(got.files, exclude)
           const rejected = [...got.rejected, ...prep.rejected]
+          if (!prep.files.length && prep.excluded)
+            return setState({ phase: 'error', message: 'Every received file was inside an excluded folder.', details: rejected })
           if (!prep.files.length) return setState({ phase: 'error', message: noFilesMessage(rejected), details: rejected })
           if (prep.bytes > REPO_MAX_BYTES)
             return setState({
@@ -114,8 +121,9 @@ export function useRepos(workspace: string) {
               setState({ phase: 'importing', name: repoName, done, total })
             },
           })
-          setRepos((prev) => [...prev.filter((r) => r.id !== res.repo.id), res.repo].sort(byUpdated))
+          upsertLocal(res.repo)
           res.report.failed.unshift(...rejected)
+          res.report.excluded = prep.excluded
           setState({ phase: res.report.failed.length || res.report.cancelled ? 'partial' : 'done', report: res.report })
         } catch (e) {
           setState({ phase: 'error', message: e instanceof Error ? e.message : 'Import failed', details: [] })
@@ -124,7 +132,7 @@ export function useRepos(workspace: string) {
         }
       })()
     },
-    [workspace, dlg],
+    [workspace, dlg, upsertLocal],
   )
 
   const cancel = useCallback(() => abort.current?.abort(), [])
@@ -135,7 +143,7 @@ export function useRepos(workspace: string) {
     await service.deleteRepo(repo).catch(console.error)
   }, [])
 
-  return { repos, state, importFrom, cancel, dismiss, remove }
+  return { repos, state, importFrom, cancel, dismiss, remove, upsertLocal }
 }
 
 export type ReposApi = ReturnType<typeof useRepos>

@@ -1,11 +1,12 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronRight, Download, File as FileIcon, Folder as FolderIcon, FolderGit2, Loader2, Search } from 'lucide-react'
+import { ChevronRight, Download, File as FileIcon, Folder as FolderIcon, FolderGit2, Loader2, Search, Trash2 } from 'lucide-react'
 import { Input } from '@/shared/components/ui/input'
+import { useDialog } from '@/shared/components/ui/dialog'
 import { downloadUrl, isImage, publicUrl } from '@/features/files/filesService'
 import { formatBytes } from '@/shared/lib/utils'
 import type { Language } from '@/features/notes/types'
 import { buildTree, flatten, type Row } from './repoTree'
-import { fetchContent, fetchRepoFiles, searchContent, type Repo, type RepoFile } from './reposService'
+import { deleteFolder, fetchContent, fetchRepoFiles, searchContent, type Repo, type RepoFile } from './reposService'
 
 const CodeArea = lazy(() => import('@/features/editor/CodeArea').then((m) => ({ default: m.CodeArea })))
 
@@ -42,7 +43,9 @@ function useDebounced<T>(value: T, ms: number): T {
   return v
 }
 
-export function RepoExplorer({ repo }: { repo: Repo }) {
+export function RepoExplorer({ repo, onUpdated }: { repo: Repo; onUpdated: (repo: Repo) => void }) {
+  const dlg = useDialog()
+  const [deleting, setDeleting] = useState<string | null>(null)
   const [files, setFiles] = useState<RepoFile[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -99,6 +102,28 @@ export function RepoExplorer({ repo }: { repo: Repo }) {
 
   const file = selected ? byPath.get(selected) : undefined
 
+  const removeFolder = async (dir: string) => {
+    if (!files || deleting) return
+    const count = files.filter((f) => f.path.startsWith(dir + '/')).length
+    const ok = await dlg.confirm({
+      title: `Delete "${dir}"?`,
+      message: `${count} file${count === 1 ? '' : 's'} will be removed from ${repo.name}.`,
+      confirmText: 'Delete',
+      danger: true,
+    })
+    if (!ok) return
+    setDeleting(dir)
+    try {
+      onUpdated(await deleteFolder(repo.id, files, dir))
+      setFiles((prev) => prev && prev.filter((f) => !f.path.startsWith(dir + '/')))
+      if (selected?.startsWith(dir + '/')) setSelected(null)
+    } catch (err) {
+      await dlg.confirm({ title: 'Delete failed', message: (err as Error).message, confirmText: 'OK' })
+    } finally {
+      setDeleting(null)
+    }
+  }
+
   return (
     <div className="flex h-full flex-col">
       <header className="flex items-center gap-3 border-b border-border px-4 py-3">
@@ -152,25 +177,38 @@ export function RepoExplorer({ repo }: { repo: Repo }) {
               render={(i) => {
                 const r = rows[i]
                 return (
-                  <button
-                    type="button"
-                    onClick={() => (r.dir ? toggle(r.path) : setSelected(r.path))}
-                    title={r.path}
-                    style={{ paddingLeft: 8 + r.depth * 12 }}
-                    className={`flex h-full w-full items-center gap-1.5 pr-2 text-left text-sm ${
-                      r.path === selected ? 'bg-elevated text-fg' : 'text-muted hover:bg-elevated/60 hover:text-fg'
-                    }`}
-                  >
-                    {r.dir ? (
-                      <>
-                        <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${expanded.has(r.path) ? 'rotate-90' : ''}`} />
-                        <FolderIcon className="h-3.5 w-3.5 shrink-0 text-primary" />
-                      </>
-                    ) : (
-                      <FileIcon className="ml-5 h-3.5 w-3.5 shrink-0" />
+                  <div className="group relative h-full">
+                    <button
+                      type="button"
+                      onClick={() => (r.dir ? toggle(r.path) : setSelected(r.path))}
+                      title={r.path}
+                      style={{ paddingLeft: 8 + r.depth * 12 }}
+                      className={`flex h-full w-full items-center gap-1.5 pr-2 text-left text-sm ${
+                        r.path === selected ? 'bg-elevated text-fg' : 'text-muted hover:bg-elevated/60 hover:text-fg'
+                      }`}
+                    >
+                      {r.dir ? (
+                        <>
+                          <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${expanded.has(r.path) ? 'rotate-90' : ''}`} />
+                          <FolderIcon className="h-3.5 w-3.5 shrink-0 text-primary" />
+                        </>
+                      ) : (
+                        <FileIcon className="ml-5 h-3.5 w-3.5 shrink-0" />
+                      )}
+                      <span className="truncate">{r.name}</span>
+                      {deleting === r.path && <Loader2 className="ml-auto h-3.5 w-3.5 shrink-0 animate-spin" />}
+                    </button>
+                    {r.dir && !deleting && (
+                      <button
+                        type="button"
+                        onClick={() => void removeFolder(r.path)}
+                        title="Delete folder"
+                        className="absolute right-1 top-1/2 hidden -translate-y-1/2 rounded p-1 text-muted hover:bg-surface hover:text-fg group-hover:block"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     )}
-                    <span className="truncate">{r.name}</span>
-                  </button>
+                  </div>
                 )
               }}
             />
