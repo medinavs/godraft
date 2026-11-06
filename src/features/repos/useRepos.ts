@@ -14,6 +14,8 @@ export type ImportState =
   | { phase: 'done' | 'partial'; report: ImportReport }
   | { phase: 'error'; message: string; details: Rejected[] }
 
+const SKIP_GIT_KEY = 'godraft.repos.skipGit'
+
 const byUpdated = (a: Repo, b: Repo) => b.updated_at.localeCompare(a.updated_at)
 
 function noFilesMessage(rejected: Rejected[]): string {
@@ -31,6 +33,13 @@ export function useRepos(workspace: string) {
   const abort = useRef<AbortController | null>(null)
   const reposRef = useRef(repos)
   reposRef.current = repos
+  const [skipGit, setSkipGitState] = useState(() => localStorage.getItem(SKIP_GIT_KEY) !== '0')
+  const skipGitRef = useRef(skipGit)
+  skipGitRef.current = skipGit
+  const setSkipGit = useCallback((v: boolean) => {
+    setSkipGitState(v)
+    localStorage.setItem(SKIP_GIT_KEY, v ? '1' : '0')
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -62,9 +71,13 @@ export function useRepos(workspace: string) {
     [],
   )
 
-  /** Must be called synchronously from the paste/drop/change handler (see collect). */
+  /**
+   * Must be called synchronously from the paste/drop/change handler (see collect).
+   * With a target, the received folder is diffed against it: only new/changed files are uploaded.
+   */
   const importFrom = useCallback(
-    (src: DataTransfer | FileList, target: Repo | null = null, exclude: string[] = []) => {
+    (src: DataTransfer | FileList, target: Repo | null = null) => {
+      const exclude = skipGitRef.current ? ['.git'] : []
       if (abort.current) return // one import at a time
       const received = collect(src)
       const ctl = new AbortController()
@@ -143,7 +156,9 @@ export function useRepos(workspace: string) {
     await service.deleteRepo(repo).catch(console.error)
   }, [])
 
-  return { repos, state, importFrom, cancel, dismiss, remove, upsertLocal }
+  const busy = state.phase === 'detecting' || state.phase === 'importing'
+
+  return { repos, state, busy, importFrom, cancel, dismiss, remove, upsertLocal, skipGit, setSkipGit }
 }
 
 export type ReposApi = ReturnType<typeof useRepos>

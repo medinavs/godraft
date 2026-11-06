@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronRight, Download, File as FileIcon, Folder as FolderIcon, FolderGit2, Loader2, Search, Trash2 } from 'lucide-react'
+import { ChevronRight, Download, RefreshCw, File as FileIcon, Folder as FolderIcon, FolderGit2, Loader2, Search, Trash2 } from 'lucide-react'
+import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { useDialog } from '@/shared/components/ui/dialog'
 import { downloadUrl, isImage, publicUrl } from '@/features/files/filesService'
@@ -43,8 +44,21 @@ function useDebounced<T>(value: T, ms: number): T {
   return v
 }
 
-export function RepoExplorer({ repo, onUpdated }: { repo: Repo; onUpdated: (repo: Repo) => void }) {
+export function RepoExplorer({
+  repo,
+  onUpdated,
+  onSync,
+  busy,
+}: {
+  repo: Repo
+  onUpdated: (repo: Repo) => void
+  /** New version of this repo (picked or dropped folder): only new/changed files get uploaded. */
+  onSync: (src: DataTransfer | FileList) => void
+  busy: boolean
+}) {
   const dlg = useDialog()
+  const pickerRef = useRef<HTMLInputElement>(null)
+  const [dragging, setDragging] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [files, setFiles] = useState<RepoFile[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -125,14 +139,53 @@ export function RepoExplorer({ repo, onUpdated }: { repo: Repo; onUpdated: (repo
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div
+      className={`relative flex h-full flex-col ${dragging ? 'ring-2 ring-inset ring-primary' : ''}`}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return
+        e.preventDefault()
+        setDragging(true)
+      }}
+      onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault()
+        setDragging(false)
+        if (!busy) onSync(e.dataTransfer)
+      }}
+    >
+      {dragging && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-bg/80 text-sm text-fg">
+          Drop the folder to update {repo.name} — only changed files are uploaded
+        </div>
+      )}
       <header className="flex items-center gap-3 border-b border-border px-4 py-3">
         <FolderGit2 className="h-4 w-4 shrink-0 text-primary" />
         <span className="font-medium">{repo.name}</span>
-        <span className="text-xs text-muted">
-          {repo.file_count} files · {repo.dir_count} folders · {formatBytes(repo.size)} · imported{' '}
+        <span className="flex-1 truncate text-xs text-muted">
+          {repo.file_count} files · {repo.dir_count} folders · {formatBytes(repo.size)} · updated{' '}
           {new Date(repo.updated_at).toLocaleString()}
         </span>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onClick={() => pickerRef.current?.click()}
+          title="Pick the repo folder again (or drop it here): new and changed files are uploaded, unchanged ones are kept, deleted ones are removed"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} />
+          {busy ? 'Updating…' : 'Update'}
+        </Button>
+        <input
+          ref={pickerRef}
+          type="file"
+          hidden
+          // @ts-expect-error non-standard but supported by every current browser
+          webkitdirectory=""
+          onChange={(e) => {
+            if (e.target.files?.length) onSync(e.target.files)
+            e.target.value = ''
+          }}
+        />
       </header>
 
       <div className="flex min-h-0 flex-1">

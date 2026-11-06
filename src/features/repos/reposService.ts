@@ -37,9 +37,10 @@ export interface ImportReport {
   dirs: number
   size: number
   at: string
-  uploaded: number
+  added: string[]
+  modified: string[]
+  removed: string[]
   unchanged: number
-  removed: number
   excluded: number
   failed: Rejected[]
   cancelled: boolean
@@ -198,7 +199,8 @@ export async function importRepo(opts: {
   const final = new Map<string, Pick<RepoFile, 'size' | 'storage_path'>>(prev)
   const failed: Rejected[] = []
   let done = 0
-  let uploaded = 0
+  const added: string[] = []
+  const modified: string[] = []
   let unchanged = 0
   let batch: Row[] = []
   let batchBytes = 0
@@ -211,8 +213,10 @@ export async function importRepo(opts: {
     const { error } = await supabase.from('repo_files').upsert(rows, { onConflict: 'repo_id,path' })
     if (error) rows.forEach((r) => failed.push({ path: r.path, reason: error.message }))
     else {
-      uploaded += rows.length
-      rows.forEach((r) => final.set(r.path, r))
+      for (const r of rows) {
+        ;(prev.has(r.path) ? modified : added).push(r.path)
+        final.set(r.path, r)
+      }
     }
   }
 
@@ -255,13 +259,13 @@ export async function importRepo(opts: {
   )
   await flush()
 
-  let removed = 0
+  let removed: string[] = []
   if (!signal.aborted) {
     const incoming = new Set(files.map((f) => f.path))
     const gone = existing.filter((f) => !incoming.has(f.path))
     await deleteRows(gone)
     gone.forEach((f) => final.delete(f.path))
-    removed = gone.length
+    removed = gone.map((f) => f.path)
   }
   await removeOrphans(existing, final.values())
 
@@ -279,9 +283,10 @@ export async function importRepo(opts: {
       dirs: saved.dir_count,
       size: saved.size,
       at: saved.updated_at,
-      uploaded,
-      unchanged,
+      added,
+      modified,
       removed,
+      unchanged,
       excluded: 0,
       failed,
       cancelled: signal.aborted,

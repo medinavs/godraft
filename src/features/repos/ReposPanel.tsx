@@ -7,8 +7,6 @@ import { formatBytes, timeAgo } from '@/shared/lib/utils'
 import { exportRepo, type Repo } from './reposService'
 import type { ImportState, ReposApi } from './useRepos'
 
-const SKIP_GIT_KEY = 'godraft.repos.skipGit'
-
 const hasFiles = (dt: DataTransfer) => dt.files.length > 0 || Array.from(dt.items).some((i) => i.kind === 'file')
 
 export function ReposPanel({
@@ -20,18 +18,16 @@ export function ReposPanel({
   activeId: string | null
   onOpen: (id: string) => void
 }) {
-  const { repos, state, importFrom, cancel, dismiss, remove } = api
+  const { repos, state, busy, importFrom, cancel, dismiss, remove, skipGit, setSkipGit } = api
   const dlg = useDialog()
   const pickerRef = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
   const [target, setTarget] = useState<Repo | null>(null) // set by "Update": next paste replaces this repo
   const [dragging, setDragging] = useState(false)
-  const [skipGit, setSkipGit] = useState(() => localStorage.getItem(SKIP_GIT_KEY) !== '0')
   const [zipping, setZipping] = useState<{ id: string; done: number; total: number } | null>(null)
-  const busy = state.phase === 'detecting' || state.phase === 'importing'
 
   const start = (src: DataTransfer | FileList) => {
-    importFrom(src, target, skipGit ? ['.git'] : [])
+    importFrom(src, target)
     setTarget(null)
   }
 
@@ -114,10 +110,7 @@ export function ReposPanel({
           <input
             type="checkbox"
             checked={skipGit}
-            onChange={(e) => {
-              setSkipGit(e.target.checked)
-              localStorage.setItem(SKIP_GIT_KEY, e.target.checked ? '1' : '0')
-            }}
+            onChange={(e) => setSkipGit(e.target.checked)}
             className="accent-primary"
           />
           Skip <code>.git</code> folder
@@ -219,6 +212,14 @@ function ImportStatus({ state, onCancel, onDismiss }: { state: ImportState; onCa
     )
 
   const failed = state.phase === 'error' ? state.details : state.report.failed
+  const changes: [string, string][] =
+    state.phase === 'error'
+      ? []
+      : [
+          ...state.report.added.map((p): [string, string] => ['A', p]),
+          ...state.report.modified.map((p): [string, string] => ['M', p]),
+          ...state.report.removed.map((p): [string, string] => ['D', p]),
+        ]
   return (
     <div className={box}>
       <div className="mb-1 flex items-start justify-between gap-2">
@@ -251,10 +252,30 @@ function ImportStatus({ state, onCancel, onDismiss }: { state: ImportState; onCa
           <dd className="text-fg">{new Date(state.report.at).toLocaleString()}</dd>
           <dt>Changes</dt>
           <dd className="text-fg">
-            {state.report.uploaded} saved · {state.report.unchanged} unchanged · {state.report.removed} removed
+            {changes.length === 0
+              ? 'already up to date'
+              : `${state.report.added.length} added · ${state.report.modified.length} modified · ${state.report.removed.length} removed`}
+          </dd>
+          <dt>Skipped</dt>
+          <dd className="text-fg">
+            {state.report.unchanged} unchanged (not uploaded)
             {state.report.excluded > 0 && ` · ${state.report.excluded} excluded`}
           </dd>
         </dl>
+      )}
+      {changes.length > 0 && (
+        <details className="mt-2">
+          <summary className="cursor-pointer text-fg">Changed files</summary>
+          <ul className="mt-1 max-h-40 overflow-y-auto font-mono text-[10px]">
+            {changes.slice(0, 500).map(([mark, path]) => (
+              <li key={mark + path} className="truncate" title={path}>
+                <span className={mark === 'A' ? 'text-emerald-400' : mark === 'M' ? 'text-amber-300' : 'text-red-400'}>{mark}</span>{' '}
+                <span className="text-muted">{path}</span>
+              </li>
+            ))}
+            {changes.length > 500 && <li className="text-muted">…and {changes.length - 500} more</li>}
+          </ul>
+        </details>
       )}
       {failed.length > 0 && (
         <details className="mt-2">
