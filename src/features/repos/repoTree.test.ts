@@ -5,6 +5,7 @@ import {
   countDirs,
   decodeText,
   flatten,
+  hasPrivateKey,
   pool,
   prepare,
   REPO_MAX_FILE_BYTES,
@@ -38,6 +39,14 @@ const ex = prepare([f('/r/.git/HEAD'), f('/r/.git/objects/ab/cd'), f('/r/sub/.gi
 assert.deepStrictEqual(ex.files.map((x) => x.path), ['.gitignore', 'a.go']) // .gitignore is a file, kept
 assert.equal(ex.excluded, 3)
 assert.equal(ex.rejected.length, 0)
+const sec = prepare(
+  ['.env', 'cfg/.env.local', '.env.example', 'credentials.json', 'k/id_rsa', 'id_rsa.pub', 'tls/server.key', 'a.pem', 'sa-service-account.json', 'env.go', 'keys.go'].map((n) => f('r/' + n)),
+)
+assert.deepStrictEqual(sec.files.map((x) => x.path), ['.env.example', 'id_rsa.pub', 'env.go', 'keys.go'])
+assert.equal(sec.excluded, 7)
+assert.ok(hasPrivateKey('x\n-----BEGIN RSA PRIVATE KEY-----\nabc'))
+assert.ok(hasPrivateKey('-----BEGIN OPENSSH PRIVATE KEY-----'))
+assert.ok(!hasPrivateKey('-----BEGIN PUBLIC KEY-----'))
 assert.equal(prepare([f('a.go'), f('src/b.go')]).root, null) // loose files: no root
 assert.equal(prepare([f('repo/a'), f('repo2/b')]).root, null)
 

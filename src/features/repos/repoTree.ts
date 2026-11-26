@@ -20,9 +20,20 @@ export function sanitizePath(raw: string): string | null {
   return parts.join('/')
 }
 
+// .env(.local…) but not .env.example/.sample/.template; credentials files; keys/certs bundles
+const SECRET_FILE =
+  /^(\.env(?!\.(example|sample|template|dist)$)(\..+)?|credentials(\.json)?|.*service[-_]?account.*\.json|id_(rsa|dsa|ecdsa|ed25519)|.*\.(pem|key|p12|pfx|jks|keystore))$/i
+
+/** Never imported: would leak secrets (and corporate DLP proxies block the whole upload batch). */
+export const isSecretFile = (path: string) => SECRET_FILE.test(path.slice(path.lastIndexOf('/') + 1))
+
+/** Private key pasted inside an otherwise innocent file (config, test fixture…). */
+export const hasPrivateKey = (text: string) => /-----BEGIN [A-Z0-9 ]*PRIVATE KEY( BLOCK)?-----/.test(text)
+
 /**
  * Validates paths, drops duplicates/oversized files and strips a shared top folder (the pasted repo itself).
  * `exclude` holds folder names skipped at any depth (e.g. '.git'); they're counted, not reported as failures.
+ * Secret files (isSecretFile) are always excluded the same way.
  */
 export function prepare<T extends { path: string; file: { size: number } }>(raw: T[], exclude: string[] = []) {
   const rejected: Rejected[] = []
@@ -32,7 +43,7 @@ export function prepare<T extends { path: string; file: { size: number } }>(raw:
   for (const r of raw) {
     const path = sanitizePath(r.path)
     if (!path) rejected.push({ path: r.path, reason: 'invalid path' })
-    else if (path.split('/').slice(0, -1).some((d) => exclude.includes(d))) excluded++
+    else if (isSecretFile(path) || path.split('/').slice(0, -1).some((d) => exclude.includes(d))) excluded++
     else if (seen.has(path)) rejected.push({ path, reason: 'duplicate path' })
     else if (r.file.size > REPO_MAX_FILE_BYTES)
       rejected.push({ path, reason: `larger than ${REPO_MAX_FILE_BYTES / 1024 / 1024} MB` })

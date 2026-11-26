@@ -2,7 +2,7 @@ import { supabase } from '@/shared/lib/supabase'
 import { publicUrl } from '@/features/files/filesService'
 import { downloadZip, type ZipEntry } from '@/shared/lib/zip'
 import type { Incoming } from './clipboard'
-import { countDirs, decodeText, INLINE_TEXT_MAX, pool, sha256, type Rejected } from './repoTree'
+import { countDirs, decodeText, hasPrivateKey, INLINE_TEXT_MAX, pool, sha256, type Rejected } from './repoTree'
 
 const BUCKET = 'files'
 const FILE_COLS = 'id,path,size,hash,binary,storage_path'
@@ -232,6 +232,7 @@ export async function importRepo(opts: {
           return
         }
         const text = decodeText(buf)
+        if (text !== null && hasPrivateKey(text)) throw new Error('contains a private key, skipped')
         const inline = text !== null && buf.length <= INLINE_TEXT_MAX
         let storage_path: string | null = null
         if (!inline) {
