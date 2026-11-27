@@ -105,7 +105,7 @@ export async function searchContent(repoId: string, q: string): Promise<string[]
 }
 
 /** Downloads the repo as <name>.zip with its folder structure. Inline text is paged in, blobs fetched by url. */
-export async function exportRepo(repo: Repo, onProgress?: (done: number, total: number) => void): Promise<void> {
+export async function exportRepo(repo: Repo, onProgress?: (done: number, total: number) => void): Promise<string[]> {
   const entries: ZipEntry[] = []
   for (;;) {
     // small pages: rows carry full file content
@@ -120,7 +120,7 @@ export async function exportRepo(repo: Repo, onProgress?: (done: number, total: 
     for (const f of data)
       entries.push(f.storage_path ? { name: f.path, url: publicUrl(f.storage_path) } : { name: f.path, text: f.content ?? '' })
   }
-  await downloadZip(repo.name, entries, onProgress)
+  return downloadZip(repo.name, entries, onProgress)
 }
 
 async function removeBlobs(paths: string[]) {

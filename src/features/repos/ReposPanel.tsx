@@ -48,7 +48,13 @@ export function ReposPanel({
   const download = async (repo: Repo) => {
     setZipping({ id: repo.id, done: 0, total: repo.file_count })
     try {
-      await exportRepo(repo, (done, total) => setZipping({ id: repo.id, done, total }))
+      const failed = await exportRepo(repo, (done, total) => setZipping({ id: repo.id, done, total }))
+      if (failed.length)
+        await dlg.confirm({
+          title: `${failed.length} file(s) skipped`,
+          message: `${failed.slice(0, 5).join('\n')}${failed.length > 5 ? '\n…' : ''}\n\nSee _FAILED_DOWNLOADS.txt in the zip.`,
+          confirmText: 'OK',
+        })
     } catch (err) {
       await dlg.confirm({ title: 'Download failed', message: (err as Error).message, confirmText: 'OK' })
     } finally {

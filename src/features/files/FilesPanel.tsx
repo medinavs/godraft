@@ -50,7 +50,9 @@ export function FilesPanel({ workspace }: { workspace: string }) {
     const name = id ? (folders.find((f) => f.id === id)?.name ?? 'folder') : 'all-files'
     setZipping(id ?? 'root')
     try {
-      await downloadZip(name, items.map((f) => ({ name: f.name, url: publicUrl(f.path) })))
+      const failed = await downloadZip(name, items.map((f) => ({ name: f.name, url: publicUrl(f.path) })))
+      if (failed.length)
+        await dlg.confirm({ title: `${failed.length} file(s) skipped`, message: failed.slice(0, 5).join('\n'), confirmText: 'OK' })
     } catch (err) {
       await dlg.confirm({ title: 'Download failed', message: (err as Error).message, confirmText: 'OK' })
     } finally {

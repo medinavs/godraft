@@ -15,13 +15,18 @@ async function fetchBytes(url: string, name: string): Promise<Uint8Array> {
   }
 }
 
-/** Zips remote files (url) and/or inline content (text) and saves it. Duplicate names get a (n) suffix. */
+/**
+ * Zips remote files (url) and/or inline content (text) and saves it. Duplicate names get a (n) suffix.
+ * A file that can't be downloaded (e.g. blocked by a corporate proxy) is skipped and listed in
+ * _FAILED_DOWNLOADS.txt inside the zip; returns the failures. Throws only if nothing could be downloaded.
+ */
 export async function downloadZip(
   zipName: string,
   entries: ZipEntry[],
   onProgress?: (done: number, total: number) => void,
-): Promise<void> {
+): Promise<string[]> {
   const files: Record<string, Uint8Array> = {}
+  const failed: string[] = []
   let next = 0
   let done = 0
 
@@ -29,12 +34,18 @@ export async function downloadZip(
     Array.from({ length: Math.min(CONCURRENCY, entries.length) }, async () => {
       while (next < entries.length) {
         const entry = entries[next++]
-        const data = 'text' in entry ? strToU8(entry.text) : await fetchBytes(entry.url, entry.name)
-        files[uniqueName(files, entry.name)] = data
+        try {
+          const data = 'text' in entry ? strToU8(entry.text) : await fetchBytes(entry.url, entry.name)
+          files[uniqueName(files, entry.name)] = data
+        } catch (e) {
+          failed.push(e instanceof Error ? e.message : `Failed to download ${entry.name}`)
+        }
         onProgress?.(++done, entries.length)
       }
     }),
   )
+  if (entries.length && failed.length === entries.length) throw new Error(failed[0])
+  if (failed.length) files[uniqueName(files, '_FAILED_DOWNLOADS.txt')] = strToU8(failed.join('\n') + '\n')
 
   const blob = await new Promise<Blob>((resolve, reject) =>
     zip(files, { level: 6 }, (err, data) =>
@@ -48,6 +59,7 @@ export async function downloadZip(
   a.download = zipName.replace(/[^\w.-]+/g, '_') + '.zip'
   a.click()
   setTimeout(() => URL.revokeObjectURL(href), 10_000) // Safari aborts if revoked too early
+  return failed
 }
 
 export function uniqueName(taken: Record<string, unknown>, name: string): string {
